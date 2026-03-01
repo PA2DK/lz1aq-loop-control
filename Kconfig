@@ -1,0 +1,27 @@
+# Copyright 2025 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "LZ1AQ Loop Controller"
+
+config USE_WIFI
+	bool "Use WiFi"
+	default n
+	help
+	  Enable the use of Wifi
+
+if USE_WIFI
+
+config WIFI_SAMPLE_SSID
+	string "SSID of the target AP"
+	help
+	  SSID of the access point to connect to in station mode.
+	  For example: "TARGET-AP"
+
+config WIFI_SAMPLE_PSK
+	string "Pre-shared key for target AP"
+	help
+	  WPA2 password used to connect to the target AP.
+	  For example: "PSK"
+endif # USE_WIFI
+
+source "Kconfig.zephyr"
