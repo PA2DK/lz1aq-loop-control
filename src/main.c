@@ -14,6 +14,23 @@
 #include <zephyr/net/net_core.h>
 #include <zephyr/net/net_context.h>
 #include <zephyr/net/net_mgmt.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/drivers/gpio.h>
+
+
+#if !DT_NODE_EXISTS(DT_NODELABEL(relay_cross))
+#error "Overlay for relay_cross not properly defined."
+#endif
+
+#if !DT_NODE_EXISTS(DT_NODELABEL(relay_dipole_loop))
+#error "Overlay for relay_dipole_loop not properly defined."
+#endif
+
+static const struct gpio_dt_spec relay_cross =
+	GPIO_DT_SPEC_GET_OR(DT_NODELABEL(relay_cross), gpios, {0});
+
+static const struct gpio_dt_spec relay_dipole_loop = 
+  GPIO_DT_SPEC_GET_OR(DT_NODELABEL(relay_dipole_loop), gpios, {0});
 
 static uint16_t http_service_port = 80;
 
@@ -156,19 +173,18 @@ static void option_handler(struct net_dhcpv4_option_callback *cb,
 int main()
 {
 
-LOG_INF("Run dhcpv4 client");
+//LOG_INF("Run dhcpv4 client");
 
-net_mgmt_init_event_callback(&mgmt_cb, handler,
-		     NET_EVENT_IPV4_ADDR_ADD);
-net_mgmt_add_event_callback(&mgmt_cb);
+//net_mgmt_init_event_callback(&mgmt_cb, handler, NET_EVENT_IPV4_ADDR_ADD);
+//net_mgmt_add_event_callback(&mgmt_cb);
 
-net_dhcpv4_init_option_callback(&dhcp_cb, option_handler,
-			DHCP_OPTION_NTP, ntp_server,
-			sizeof(ntp_server));
+//net_dhcpv4_init_option_callback(&dhcp_cb, option_handler,
+//			DHCP_OPTION_NTP, ntp_server,
+//			sizeof(ntp_server));
 
-net_dhcpv4_add_option_callback(&dhcp_cb);
+//net_dhcpv4_add_option_callback(&dhcp_cb);
 
-net_if_foreach(start_dhcpv4_client, NULL);
+//net_if_foreach(start_dhcpv4_client, NULL);
 
 //net_mgmt_init_event_callback(&cb, wifi_event_handler, NET_EVENT_WIFI_MASK);
 //net_mgmt_add_event_callback(&cb);
@@ -184,6 +200,44 @@ net_if_foreach(start_dhcpv4_client, NULL);
 //sta_iface = net_if_get_wifi_sta();
 
 // connect_to_wifi();
+
+//http_server_start();
+
+if (!gpio_is_ready_dt(&relay_cross)) {
+  LOG_INF("The relay_cross switch pin GPIO port is not ready");
+  return 0;
+}
+
+if(!gpio_is_ready_dt(&relay_dipole_loop)) {
+  LOG_INF("The relay_dipole_loop switch pin GPIO port is not ready");
+  return 0;
+}
+
+gpio_pin_configure_dt(&relay_cross, GPIO_OUTPUT_INACTIVE);
+gpio_pin_configure_dt(&relay_dipole_loop, GPIO_OUTPUT_INACTIVE);
+
+LOG_INF("Sleep 5seconds");
+
+k_sleep(K_MSEC(5000));
+
+LOG_INF("Turning on relays");
+
+gpio_pin_set_dt(&relay_dipole_loop, 1);
+int err = gpio_pin_set_dt(&relay_cross, 1);
+if (err != 0) {
+  LOG_ERR("Setting GPIO pin level failed: %d", err);
+}
+
+LOG_INF("Sleep 5 seconds");
+
+k_sleep(K_MSEC(5000));
+
+LOG_INF("Turning off relays");
+
+gpio_pin_set_dt(&relay_dipole_loop, 0);
+gpio_pin_set_dt(&relay_cross, 0);
+
+LOG_INF("Turned of relays");
 
 http_server_start();
 

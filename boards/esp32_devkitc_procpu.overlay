@@ -14,3 +14,15 @@
   };
 };
 
+/ {
+  relay_cross: relay_cross {
+    compatible = "relay";
+    /* using built-in LED pin for demonstration */
+	  gpios = <&gpio0 19 GPIO_ACTIVE_HIGH>;
+  };
+
+  relay_dipole_loop: relay_dipole_loop {
+    compatible = "relay";
+    gpios = <&gpio0 18 GPIO_ACTIVE_HIGH>;
+  };
+};
