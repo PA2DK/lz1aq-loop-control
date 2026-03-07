@@ -23,11 +23,26 @@
 #error "Overlay for relay_dipole_loop not properly defined."
 #endif
 
+#if !DT_NODE_EXISTS(DT_NODELABEL(relay_a_b))
+#error "Overlay for relay_a_b not properly defined."
+#endif
+
+#if !DT_NODE_EXISTS(DT_NODELABEL(relay_minus_plus_45))
+#error "Overlay for relay_minus_plus_45 not properly defined."
+#endif
+
+
 static const struct gpio_dt_spec relay_cross =
-	GPIO_DT_SPEC_GET_OR(DT_NODELABEL(relay_cross), gpios, {0});
+    GPIO_DT_SPEC_GET_OR(DT_NODELABEL(relay_cross), gpios, {0});
 
 static const struct gpio_dt_spec relay_dipole_loop = 
-  GPIO_DT_SPEC_GET_OR(DT_NODELABEL(relay_dipole_loop), gpios, {0});
+    GPIO_DT_SPEC_GET_OR(DT_NODELABEL(relay_dipole_loop), gpios, {0});
+
+static const struct gpio_dt_spec relay_a_b = 
+    GPIO_DT_SPEC_GET_OR(DT_NODELABEL(relay_a_b), gpios, {0});
+
+static const struct gpio_dt_spec relay_minus_plus_45 = 
+    GPIO_DT_SPEC_GET_OR(DT_NODELABEL(relay_minus_plus_45), gpios, {0});
 
 static uint16_t http_service_port = 80;
 
@@ -198,20 +213,38 @@ int main()
         return 0;
     }
 
+    if(!gpio_is_ready_dt(&relay_a_b)) {
+        LOG_INF("The relay_a_b switch pin GPIO port is not ready");
+        return 0;
+    }
+
+    if(!gpio_is_ready_dt(&relay_minus_plus_45)) {
+        LOG_INF("The relay_minus_plus_45 switch pin GPIO port is not ready");
+        return 0;
+    }
+
     gpio_pin_configure_dt(&relay_cross, GPIO_OUTPUT_INACTIVE);
     gpio_pin_configure_dt(&relay_dipole_loop, GPIO_OUTPUT_INACTIVE);
-
-    LOG_INF("Sleep 5seconds");
-
-    k_sleep(K_MSEC(5000));
+    gpio_pin_configure_dt(&relay_a_b, GPIO_OUTPUT_INACTIVE);
+    gpio_pin_configure_dt(&relay_minus_plus_45, GPIO_OUTPUT_INACTIVE);
 
     LOG_INF("Turning on relays");
 
+    k_sleep(K_MSEC(2000));
+
+    gpio_pin_set_dt(&relay_cross, 1);
+
+    k_sleep(K_MSEC(2000));
+
+    gpio_pin_set_dt(&relay_a_b, 1);
+
+    k_sleep(K_MSEC(2000));
+
+    gpio_pin_set_dt(&relay_minus_plus_45, 1);
+
+    k_sleep(K_MSEC(2000));
+
     gpio_pin_set_dt(&relay_dipole_loop, 1);
-    int err = gpio_pin_set_dt(&relay_cross, 1);
-    if (err != 0) {
-        LOG_ERR("Setting GPIO pin level failed: %d", err);
-    }
 
     LOG_INF("Sleep 5 seconds");
 
@@ -221,6 +254,8 @@ int main()
 
     gpio_pin_set_dt(&relay_dipole_loop, 0);
     gpio_pin_set_dt(&relay_cross, 0);
+    gpio_pin_set_dt(&relay_a_b, 0);
+    gpio_pin_set_dt(&relay_minus_plus_45, 0);
 
     LOG_INF("Turned of relays");
 

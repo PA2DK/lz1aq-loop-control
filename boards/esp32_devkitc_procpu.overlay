@@ -1,28 +1,37 @@
 &spi2 {
-  status = "okay";
-  eth_w5500: eth_w5500@0 {
-    compatible = "wiznet,w5500";
     status = "okay";
-    reg = <0x0>;
-    spi-max-frequency = <8000000>;
-    int-gpios = <&gpio0 17 GPIO_ACTIVE_LOW>;
-    reset-gpios = <&gpio0 16 GPIO_ACTIVE_LOW>;
-    /* *************************** */
-    /* Write here your MAC address */
-    /* *************************** */
-    local-mac-address = [00 08 DC 01 02 03];
-  };
+    eth_w5500: eth_w5500@0 {
+        compatible = "wiznet,w5500";
+        status = "okay";
+        reg = <0x0>;
+        spi-max-frequency = <8000000>;
+        int-gpios = <&gpio0 17 GPIO_ACTIVE_LOW>;
+        reset-gpios = <&gpio0 16 GPIO_ACTIVE_LOW>;
+        /* *************************** */
+        /* Write here your MAC address */
+        /* *************************** */
+        local-mac-address = [00 08 DC 01 02 03];
+    };
 };
 
 / {
-  relay_cross: relay_cross {
-    compatible = "relay";
-    /* using built-in LED pin for demonstration */
-	  gpios = <&gpio0 19 GPIO_ACTIVE_HIGH>;
-  };
+    relay_cross: relay_cross {
+        compatible = "relay";
+        gpios = <&gpio0 26 GPIO_ACTIVE_HIGH>;
+    };
 
-  relay_dipole_loop: relay_dipole_loop {
-    compatible = "relay";
-    gpios = <&gpio0 18 GPIO_ACTIVE_HIGH>;
-  };
+    relay_a_b: relay_a_b {
+        compatible = "relay";
+        gpios = <&gpio0 25 GPIO_ACTIVE_HIGH>;
+    };
+
+    relay_minus_plus_45: relay_minus_plus_45 {
+        compatible = "relay";
+        gpios = <&gpio0 27 GPIO_ACTIVE_HIGH>;
+    };
+
+    relay_dipole_loop: relay_dipole_loop {
+        compatible = "relay";
+        gpios = <&gpio0 21 GPIO_ACTIVE_HIGH>;
+    };
 };
