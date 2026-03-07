@@ -1,7 +1,6 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/net/http/service.h>
-#include "wifi.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/linker/sections.h>
@@ -51,7 +50,22 @@ struct http_resource_detail_static index_html_gz_resource_detail = {
 HTTP_RESOURCE_DEFINE(index_html_gz_resource, lz1aq_loop_control, "/",
                      &index_html_gz_resource_detail);
 
+static const uint8_t main_js_gz[] = {
+    #include "main.js.gz.inc"
+};
 
+struct http_resource_detail_static main_js_gz_resource_detail = {
+    .common = {
+        .type = HTTP_RESOURCE_TYPE_STATIC,
+        .bitmask_of_supported_http_methods = BIT(HTTP_GET),
+        .content_encoding = "gzip",
+    },
+    .static_data = main_js_gz,
+    .static_data_len = sizeof(main_js_gz),
+};
+
+HTTP_RESOURCE_DEFINE(main_js_gz_resource, lz1aq_loop_control, "/main.js",
+                     &main_js_gz_resource_detail);
 
 static struct net_mgmt_event_callback cb;
 

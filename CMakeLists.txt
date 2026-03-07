@@ -8,7 +8,16 @@ zephyr_linker_section(NAME http_resource_desc_lz1aq_loop_control
                       KVMA RAM_REGION GROUP RODATA_REGION)
 
 set(gen_dir ${ZEPHYR_BINARY_DIR}/include/generated/)
-set(source_file_index src/www/index.html)
-generate_inc_file_for_target(app ${source_file_index} ${gen_dir}/index.html.gz.inc --gzip)
+
+foreach(web_resource
+    index.html
+    main.js
+)
+    generate_inc_file_for_target(app
+        src/www/${web_resource}
+        ${gen_dir}/${web_resource}.gz.inc
+        --gzip
+    )
+endforeach()
 
 target_sources(app PRIVATE src/main.c)
