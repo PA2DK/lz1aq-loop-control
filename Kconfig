@@ -3,6 +3,13 @@
 
 mainmenu "LZ1AQ Loop Controller"
 
+config NET_SAMPLE_NUM_WEBSOCKET_HANDLERS
+	int "How many websocket connections to serve at the same time"
+	default 3
+	help
+	  Each websocket connection is served by a thread which needs
+	  memory. Only increase the value here if really needed.
+
 config USE_WIFI
 	bool "Use WiFi"
 	default n

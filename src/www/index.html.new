@@ -1,0 +1,199 @@
+
+<script>
+  // === CONFIG ===
+  const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
+  const AUTO_RECONNECT = true;
+  const RECONNECT_BASE_MS = 500;
+  const RECONNECT_MAX_MS  = 8000;
+
+  // === STATE ===
+  let socket = null;
+  let reconnectTimer = null;
+  let reconnectDelay = RECONNECT_BASE_MS;
+  let explicitlyClosed = false;
+
+  // === UI HELPERS ===
+  const statusDot = document.getElementById("statusDot");
+  const statusText = document.getElementById("statusText");
+
+  function setStatus(state, text) {
+    statusDot.classList.remove("connected", "connecting", "error");
+    if (state === "connected") statusDot.classList.add("connected");
+    else if (state === "connecting") statusDot.classList.add("connecting");
+    else if (state === "error") statusDot.classList.add("error");
+    statusText.textContent = text;
+  }
+
+  // Button map (DOM id -> command string)
+  const buttonMap = {
+    "LoopA": "LoopA",
+    "LoopB": "LoopB",
+    "Crossed": "Crossed",
+    "minus_45": "-45",
+    "plus_45": "+45",
+    "Vertical": "Vertical"
+  };
+
+  const idByCommand = Object.fromEntries(
+    Object.entries(buttonMap).map(([id, cmd]) => [cmd, id])
+  );
+
+  // ====== STATE-DRIVEN UI (Active / Disabled) ======
+  function setActiveButtons(activeList) {
+    // activeList: array of command strings (e.g., ["LoopA"] or ["LoopA","-45"])
+    const activeSet = new Set(activeList || []);
+    for (const [id, cmd] of Object.entries(buttonMap)) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+
+      // Use Bootstrap styles to indicate state:
+      //   active   => btn-success
+      //   inactive => btn-dark (except LoopA default style from your UI)
+      const isActive = activeSet.has(cmd);
+
+      // Normalize classes (keep 'btn' always)
+      el.classList.remove("btn-success", "btn-dark", "active");
+      el.classList.add("btn");
+
+      if (isActive) {
+        el.classList.add("btn-success", "active");
+      } else {
+        el.classList.add("btn-dark");
+      }
+    }
+  }
+
+  function setDisabledButtons(disabledList) {
+    const disabledSet = new Set(disabledList || []);
+    for (const [id, cmd] of Object.entries(buttonMap)) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      el.disabled = disabledSet.has(cmd);
+      // Optional: visual tweak when disabled
+      // el.classList.toggle("disabled", el.disabled);
+    }
+  }
+
+  // Accepts either a single command string or an array of command strings.
+  function applyServerState(active, disabled) {
+    const activeArray = Array.isArray(active) ? active
+                      : (typeof active === "string" ? [active] : []);
+
+    setActiveButtons(activeArray);
+    setDisabledButtons(disabled || []);
+  }
+
+  // ====== SERVER MESSAGE HANDLER ======
+  function handleServerMessage(data) {
+    // Try JSON first
+    try {
+      const obj = JSON.parse(data);
+
+      // Flexible handling:
+      //  { type: "state", active: ["LoopA","-45"], disabled: ["Crossed"] }
+      //  { active: "LoopA" }
+      //  { pressed: "LoopB" }  -> interpret as active single
+      if (obj && (obj.type === "state" || obj.active !== undefined || obj.pressed !== undefined)) {
+        const active = obj.active !== undefined ? obj.active
+                    : (obj.pressed !== undefined ? obj.pressed : []);
+        const disabled = obj.disabled !== undefined ? obj.disabled : [];
+        applyServerState(active, disabled);
+        return;
+      }
+
+      // If there's some other JSON message you care about, add more branches here.
+
+    } catch (e) {
+      // Not JSON, fall through and treat as plain text
+    }
+
+    // Plain text fallback:
+    // If server sends a single command name (e.g., "LoopA" or "-45"),
+    // mark that as active and clear other actives unless you want multi-select.
+    const trimmed = String(data).trim();
+    if (trimmed && idByCommand[trimmed]) {
+      // If your server semantics allow multiple simultaneous states (e.g., Loop + angle),
+      // you can add logic to merge with existing active set.
+      // The default here assumes the server message is authoritative.
+      applyServerState(trimmed, []);
+    }
+  }
+
+  // ====== SOCKET LIFECYCLE ======
+  function connectSocket() {
+    if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+      return socket;
+    }
+
+    setStatus("connecting", "Connecting…");
+    explicitlyClosed = false;
+    socket = new WebSocket(WS_URL);
+
+    socket.addEventListener("open", () => {
+      setStatus("connected", "Connected");
+      reconnectDelay = RECONNECT_BASE_MS;
+      // Optionally ask server for current state after connect:
+      // socket.send(JSON.stringify({ type: "get_state" }));
+    });
+
+    socket.addEventListener("message", (event) => {
+      // console.log("←", event.data);
+      handleServerMessage(event.data);
+    });
+
+    socket.addEventListener("close", (event) => {
+      setStatus("error", `Disconnected (${event.code})`);
+      if (!explicitlyClosed && AUTO_RECONNECT) scheduleReconnect();
+    });
+
+    socket.addEventListener("error", () => {
+      setStatus("error", "Connection error");
+    });
+
+    return socket;
+  }
+
+  function scheduleReconnect() {
+    if (reconnectTimer) return;
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_MS);
+      connectSocket();
+    }, reconnectDelay);
+  }
+
+  function ensureConnectedThenSend(message) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(message);
+      // console.log("→", message);
+      return;
+    }
+    if (socket && socket.readyState === WebSocket.CONNECTING) {
+      socket.addEventListener("open", function once() {
+        socket.removeEventListener("open", once);
+        socket.send(message);
+      });
+      return;
+    }
+    connectSocket();
+    socket.addEventListener("open", function once() {
+      socket.removeEventListener("open", once);
+      socket.send(message);
+    });
+  }
+
+  // ====== WIRE UP BUTTONS ======
+  Object.entries(buttonMap).forEach(([id, command]) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener("click", () => {
+        // You can change to JSON if your server expects it:
+        // ensureConnectedThenSend(JSON.stringify({ type: "command", command }));
+        ensureConnectedThenSend(command);
+      });
+    }
+  });
+
+  // OPTIONAL: connect immediately on load
+  // connectSocket();
+</script>
