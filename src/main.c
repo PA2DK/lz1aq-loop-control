@@ -13,9 +13,6 @@
 #include <zephyr/net/net_mgmt.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/gpio.h>
-#include <zephyr/net/websocket.h>
-
-#include "ws.h"
 
 LOG_MODULE_REGISTER(MAIN);
 
@@ -49,13 +46,6 @@ static const struct gpio_dt_spec relay_minus_plus_45 =
     GPIO_DT_SPEC_GET_OR(DT_NODELABEL(relay_minus_plus_45), gpios, {0});
 
 static uint16_t http_service_port = 80;
-
-static int ws_socket;
-static uint8_t ws_recv_buffer[1024];
-
-#define MAX_CLIENTS 4
-static int g_clients[MAX_CLIENTS] = { -1, -1, -1, -1 };
-static struct k_mutex g_clients_lock;
 
 HTTP_SERVICE_DEFINE(lz1aq_loop_control, "0.0.0.0", &http_service_port, 1, 10, NULL, NULL, NULL);
 
@@ -114,23 +104,116 @@ HTTP_RESOURCE_DEFINE(bootstrap_min_css_resource, lz1aq_loop_control, "/bootstrap
                      &bootstrap_min_css_gz_resource_detail);
 
 
-static void clients_add(int ws)
+static int loop_a_handler(struct http_client_ctx *client, enum http_transaction_status status,
+			  const struct http_request_ctx *request_ctx,
+			  struct http_response_ctx *response_ctx, void *user_data)
 {
-    k_mutex_lock(&g_clients_lock, K_FOREVER);
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (g_clients[i] < 0) { g_clients[i] = ws; break; }
-    }
-    k_mutex_unlock(&g_clients_lock);
+	gpio_pin_set_dt(&relay_dipole_loop, 1);
+  	gpio_pin_set_dt(&relay_a_b, 0);
+	gpio_pin_set_dt(&relay_cross, 0);
+	return 0;
 }
 
-static void clients_remove(int ws)
+struct http_resource_detail_dynamic loop_a_handler_resource_detail = {
+    .common = {
+        .type = HTTP_RESOURCE_TYPE_DYNAMIC,
+        .bitmask_of_supported_http_methods =
+            BIT(HTTP_GET),
+    },
+    .cb = loop_a_handler,
+    .user_data = NULL,
+};
+
+HTTP_RESOURCE_DEFINE(loop_a_handler_resource, lz1aq_loop_control, "/direction/loop_a", &loop_a_handler_resource_detail);
+
+static int loop_b_handler(struct http_client_ctx *client, enum http_transaction_status status,
+			  const struct http_request_ctx *request_ctx,
+			  struct http_response_ctx *response_ctx, void *user_data)
 {
-    k_mutex_lock(&g_clients_lock, K_FOREVER);
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (g_clients[i] == ws) { g_clients[i] = -1; break; }
-    }
-    k_mutex_unlock(&g_clients_lock);
+	gpio_pin_set_dt(&relay_dipole_loop, 1);
+  	gpio_pin_set_dt(&relay_a_b, 1);
+	gpio_pin_set_dt(&relay_cross, 0);
+	return 0;
 }
+
+struct http_resource_detail_dynamic loop_b_handler_resource_detail = {
+    .common = {
+        .type = HTTP_RESOURCE_TYPE_DYNAMIC,
+        .bitmask_of_supported_http_methods =
+            BIT(HTTP_GET),
+    },
+    .cb = loop_b_handler,
+    .user_data = NULL,
+};
+
+HTTP_RESOURCE_DEFINE(loop_b_handler_resource, lz1aq_loop_control, "/direction/loop_b", &loop_b_handler_resource_detail);
+
+static int loop_min_45_handler(struct http_client_ctx *client, enum http_transaction_status status,
+			  const struct http_request_ctx *request_ctx,
+			  struct http_response_ctx *response_ctx, void *user_data)
+{
+	gpio_pin_set_dt(&relay_dipole_loop, 1);
+	gpio_pin_set_dt(&relay_cross, 1);
+    	gpio_pin_set_dt(&relay_minus_plus_45, 0);
+	return 0;
+}
+
+struct http_resource_detail_dynamic min_45_handler_resource_detail = {
+    .common = {
+        .type = HTTP_RESOURCE_TYPE_DYNAMIC,
+        .bitmask_of_supported_http_methods =
+            BIT(HTTP_GET),
+    },
+    .cb = loop_min_45_handler,
+    .user_data = NULL,
+};
+
+HTTP_RESOURCE_DEFINE(min_45_handler_resource, lz1aq_loop_control, "/direction/min_45", &min_45_handler_resource_detail);
+
+static int loop_plus_45_handler(struct http_client_ctx *client, enum http_transaction_status status,
+			  const struct http_request_ctx *request_ctx,
+			  struct http_response_ctx *response_ctx, void *user_data)
+{
+	gpio_pin_set_dt(&relay_dipole_loop, 1);
+	gpio_pin_set_dt(&relay_cross, 1);
+    	gpio_pin_set_dt(&relay_minus_plus_45, 1);
+	return 0;
+}
+
+struct http_resource_detail_dynamic plus_45_handler_resource_detail = {
+    .common = {
+        .type = HTTP_RESOURCE_TYPE_DYNAMIC,
+        .bitmask_of_supported_http_methods =
+            BIT(HTTP_GET),
+    },
+    .cb = loop_plus_45_handler,
+    .user_data = NULL,
+};
+
+HTTP_RESOURCE_DEFINE(plus_45_handler_resource, lz1aq_loop_control, "/direction/plus_45", &plus_45_handler_resource_detail);
+
+static int vertical_handler(struct http_client_ctx *client, enum http_transaction_status status,
+			  const struct http_request_ctx *request_ctx,
+			  struct http_response_ctx *response_ctx, void *user_data)
+{
+	gpio_pin_set_dt(&relay_dipole_loop, 0);
+	gpio_pin_set_dt(&relay_cross, 0);
+    	gpio_pin_set_dt(&relay_minus_plus_45, 0);
+  	gpio_pin_set_dt(&relay_a_b, 0);
+	return 0;
+}
+
+struct http_resource_detail_dynamic vertical_handler_resource_detail = {
+    .common = {
+        .type = HTTP_RESOURCE_TYPE_DYNAMIC,
+        .bitmask_of_supported_http_methods =
+            BIT(HTTP_GET),
+    },
+    .cb = vertical_handler,
+    .user_data = NULL,
+};
+
+HTTP_RESOURCE_DEFINE(vertical_handler_resource, lz1aq_loop_control, "/direction/vertical", &vertical_handler_resource_detail);
 
 enum loop_mode {
     MODE_NONE = 0,
@@ -160,67 +243,6 @@ static enum loop_mode cmd_to_mode(const char *s)
     if (strcmp(s, "vertical") == 0) return MODE_VERTICAL;
     return MODE_NONE;
 }
-
-/* --- State update + broadcast --- */
-static void broadcast_state(void)
-{
-    // char json[128];
-    // int len = 0;
-    // //build_state_json(json, sizeof(json));
-    // if (len <= 0) return;
-
-    // /* Server frames: opcode TEXT; server must NOT mask (mask=false). */
-    // k_mutex_lock(&g_clients_lock, K_FOREVER);
-    // for (int i = 0; i < MAX_CLIENTS; i++) {
-    //     int ws = g_clients[i];
-    //     if (ws < 0) continue;
-    //     int ret = websocket_send_msg(ws, (const uint8_t *)json, len,
-    //                                  WEBSOCKET_OPCODE_DATA_TEXT,
-    //                                  false /*mask*/, true /*final*/, K_NO_WAIT);
-    //     if (ret < 0) {
-    //         LOG_WRN("send state to ws=%d failed (%d)", ws, ret);
-    //     }
-    // }
-    // k_mutex_unlock(&g_clients_lock);
-}
-
-// int ws_setup(int sock, struct http_request_ctx *request_ctx, void *user_data)
-// {
-//     ARG_UNUSED(request_ctx);
-//     ARG_UNUSED(user_data);
-
-//     /* Register the just-upgraded TCP socket as a WebSocket so we can use
-//      * websocket_* helpers to recv/send frames.
-//      */
-//     // int ws = websocket_register(sock, ws_recv_buffer, sizeof(ws_recv_buffer));
-//     // if (ws < 0) {
-//     //     LOG_ERR("websocket_register failed: %d", ws);
-//     //     zsock_close(sock);
-//     //     return ws;
-//     // }
-
-//     LOG_INF("WebSocket connected (fd=%d)", sock);
-//     clients_add(sock);
-//     return 0;
-// }
-
-static uint8_t ws_echo_buffer[1024];
-
-struct http_resource_detail_websocket ws_resource_detail = {
-    .common = {
-        .type = HTTP_RESOURCE_TYPE_WEBSOCKET,
-        /* We need HTTP/1.1 Get method for upgrading */
-        .bitmask_of_supported_http_methods = BIT(HTTP_GET),
-    },
-    .cb = ws_echo_setup,
-    .data_buffer = ws_echo_buffer,
-    .data_buffer_len = sizeof(ws_echo_buffer),
-    .user_data = NULL, /* Fill this for any user specific data */
-};
-
-HTTP_RESOURCE_DEFINE(ws_resource, lz1aq_loop_control, "/", &ws_resource_detail);
-
-static struct net_mgmt_event_callback cb;
 
 #define DHCP_OPTION_NTP (42)
 
@@ -289,8 +311,7 @@ static void option_handler(struct net_dhcpv4_option_callback *cb,
 
 int main()
 {
-
-    LOG_INF("Run dhcpv4 client");
+    LOG_INF("Startup LZ1AQ Loop Control");
 
     net_mgmt_init_event_callback(&mgmt_cb, handler, NET_EVENT_IPV4_ADDR_ADD);
     net_mgmt_add_event_callback(&mgmt_cb);
@@ -301,8 +322,6 @@ int main()
     net_dhcpv4_add_option_callback(&dhcp_cb);
 
     net_if_foreach(start_dhcpv4_client, NULL);
-
-    http_server_start();
 
     if (!gpio_is_ready_dt(&relay_cross)) {
         LOG_INF("The relay_cross switch pin GPIO port is not ready");
@@ -328,6 +347,8 @@ int main()
     gpio_pin_configure_dt(&relay_dipole_loop, GPIO_OUTPUT_INACTIVE);
     gpio_pin_configure_dt(&relay_a_b, GPIO_OUTPUT_INACTIVE);
     gpio_pin_configure_dt(&relay_minus_plus_45, GPIO_OUTPUT_INACTIVE);
+
+    http_server_start();
 
     // LOG_INF("Turning on relays");
 
